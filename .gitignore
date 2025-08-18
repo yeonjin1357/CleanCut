@@ -1,0 +1,194 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code related
+.vscode/
+*.code-workspace
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+.packages
+.metadata
+pubspec.lock
+coverage/
+*.dart_tool.version
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android related
+/android/app/debug
+/android/app/profile
+/android/app/release
+/android/.gradle/
+/android/captures/
+/android/gradlew
+/android/gradlew.bat
+/android/local.properties
+/android/**/GeneratedPluginRegistrant.java
+/android/key.properties
+*.jks
+*.keystore
+
+# iOS/XCode related
+/ios/**/*.mode1v3
+/ios/**/*.mode2v3
+/ios/**/*.moved-aside
+/ios/**/*.pbxuser
+/ios/**/*.perspectivev3
+/ios/**/*sync/
+/ios/**/.sconsign.dblite
+/ios/**/.tags*
+/ios/**/.vagrant/
+/ios/**/DerivedData/
+/ios/**/Icon?
+/ios/**/Pods/
+/ios/**/.symlinks/
+/ios/**/profile
+/ios/**/xcuserdata
+/ios/.generated/
+/ios/Flutter/App.framework
+/ios/Flutter/Flutter.framework
+/ios/Flutter/Flutter.podspec
+/ios/Flutter/Generated.xcconfig
+/ios/Flutter/ephemeral/
+/ios/Flutter/app.flx
+/ios/Flutter/app.zip
+/ios/Flutter/flutter_assets/
+/ios/Flutter/flutter_export_environment.sh
+/ios/ServiceDefinitions.json
+/ios/Runner/GeneratedPluginRegistrant.*
+
+# macOS
+/macos/Flutter/GeneratedPluginRegistrant.swift
+/macos/Flutter/ephemeral/
+
+# Windows
+/windows/flutter/generated_plugin_registrant.cc
+/windows/flutter/generated_plugin_registrant.h
+/windows/flutter/generated_plugins.cmake
+
+# Linux
+/linux/flutter/generated_plugin_registrant.cc
+/linux/flutter/generated_plugin_registrant.h
+/linux/flutter/generated_plugins.cmake
+
+# Web
+/web/favicon.png
+/web/icons/Icon-*.png
+/web/manifest.json
+
+# Test related
+test/.test_coverage.dart
+coverage/
+test/reports/
+
+# Exceptions to above rules.
+!/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
+
+# Environment variables and API keys
+.env
+.env.local
+.env.production
+.env.development
+*.env
+api_keys.dart
+secrets.dart
+/lib/config/api_config.dart
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Claude Code specific
+.claude/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*~
+
+# Log files
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS generated files
+Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Flutter project specific
+/lib/generated/
+/assets/test/
+*.g.dart
+*.freezed.dart
+*.config.dart
+
+# Build outputs
+*.apk
+*.aab
+*.ipa
+*.app
+
+# Fastlane
+/fastlane/report.xml
+/fastlane/Preview.html
+/fastlane/screenshots
+/fastlane/test_output
+
+# Firebase
+google-services.json
+GoogleService-Info.plist
+firebase_app_id_file.json
+.firebaserc
+firebase.json
+.firebase/
+
+# Other
+node_modules/
+.fvm/
+fvm_config.json
