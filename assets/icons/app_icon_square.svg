@@ -1,0 +1,19 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Gradient definition -->
+  <defs>
+    <linearGradient id="blueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#60A5FA;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#2563EB;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1E40AF;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background square with gradient (no rounded corners) -->
+  <rect x="0" y="0" width="1024" height="1024" fill="url(#blueGradient)"/>
+  
+  <!-- Bottom layer (shadow/depth effect) - white with transparency -->
+  <path d="M 512 407 L 820 557 L 512 707 L 204 557 Z" fill="white" opacity="0.7"/>
+  
+  <!-- Top layer - white -->
+  <path d="M 512 317 L 820 467 L 512 617 L 204 467 Z" fill="white"/>
+</svg>

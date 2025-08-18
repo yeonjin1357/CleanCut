@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -159,13 +160,12 @@ class _HomeScreenState extends State<HomeScreen> {
                               width: 80,
                               height: 80,
                               decoration: BoxDecoration(
-                                color: AppTheme.primaryColor.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: Icon(
-                                Icons.image_outlined,
-                                size: 40,
-                                color: AppTheme.primaryColor,
+                              child: SvgPicture.asset(
+                                'assets/icons/app_icon.svg',
+                                width: 80,
+                                height: 80,
                               ),
                             ),
                             const SizedBox(height: 24),
