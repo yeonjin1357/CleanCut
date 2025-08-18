@@ -1,3 +1,215 @@
+# CleanCut - Flutter 배경 제거 앱 프로젝트
+
+## 📌 현재 진행 상황 (2025-08-18)
+
+### ✅ 완료된 작업
+- ✅ BiRefNet-dynamic 모델 라이선스 확인 (MIT - 상업 사용 가능)
+- ✅ Flutter 프로젝트 생성 및 구조 설정
+- ✅ 홈 화면 UI 구현 (Remove.bg 스타일의 깔끔한 디자인)
+- ✅ 편집 화면 UI 구현 (원본/결과 비교 기능)
+- ✅ 로딩 오버레이 구현
+- ✅ API 서비스 기본 구조 구현
+- ✅ Python FastAPI 서버 예제 작성
+- ✅ Android NDK 버전 충돌 해결
+
+### 🔧 진행 중인 작업
+- **API 방식으로 개발 진행 확정**
+- ✅ Python 서버에 BiRefNet 모델 통합 코드 작성 완료 (`server_birefnet.py`)
+
+### 📋 남은 작업
+- [ ] GPU 환경에서 서버 테스트 (로컬 또는 클라우드)
+- [ ] 서버 배포 (Hugging Face Spaces 추천 - 무료 GPU)
+- [ ] 실제 디바이스 테스트
+- [ ] 앱스토어 배포 준비
+
+## 📁 현재 프로젝트 구조
+
+```
+cleancut/
+├── lib/
+│   ├── main.dart                     ✅ 완료
+│   ├── screens/
+│   │   ├── home_screen.dart          ✅ 완료 (깔끔한 UI)
+│   │   └── editor_screen.dart        ✅ 완료 (결과 뷰어)
+│   ├── services/
+│   │   └── api_service.dart          ✅ 완료 (API 통신)
+│   ├── providers/
+│   │   └── app_state.dart            ✅ 완료 (상태 관리)
+│   ├── widgets/
+│   │   └── loading_overlay.dart      ✅ 완료 (로딩 UI)
+│   └── utils/
+│       └── app_theme.dart            ✅ 완료 (디자인 테마)
+├── assets/
+│   └── images/                       
+├── server_example.py                  ✅ 완료 (API 서버 예제)
+├── server_birefnet.py                 ✅ 완료 (실제 BiRefNet 서버)
+├── requirements.txt                   ✅ 완료 (Python 패키지)
+├── Dockerfile                         ✅ 완료 (배포용)
+└── pubspec.yaml                       ✅ 완료 (Flutter 패키지)
+```
+
+## 🎨 디자인 컨셉
+- **참고 앱**: Remove.bg, PhotoRoom
+- **메인 컬러**: #2563EB (밝은 파란색)
+- **UI 스타일**: 카드 기반, 미니멀, 넉넉한 여백
+- **특징**: 부드러운 그림자, 둥근 모서리, 깔끔한 아이콘
+
+## 🔧 주요 기능
+
+### 구현 완료
+1. ✅ **이미지 선택**: 갤러리/카메라에서 이미지 선택
+2. ✅ **결과 저장**: PNG 형식으로 투명 배경 저장
+3. ✅ **공유**: 처리된 이미지 공유
+4. ✅ **원본/결과 비교**: 실시간 전환 가능
+
+### 구현 예정
+- 🔄 **배경 제거**: BiRefNet-dynamic 모델로 누끼 따기 (서버 통합 필요)
+
+## 📦 사용 중인 패키지
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 핵심 패키지
+  image_picker: ^1.0.7        # 이미지 선택
+  provider: ^6.1.1            # 상태 관리
+  dio: ^5.4.0                # API 통신
+  path_provider: ^2.1.2      # 파일 저장
+  share_plus: ^7.2.1         # 이미지 공유
+  image: ^4.1.7              # 이미지 처리
+
+  # UI/UX
+  flutter_spinkit: ^5.2.0           # 로딩 애니메이션
+  cached_network_image: ^3.3.1     # 이미지 캐싱
+  photo_view: ^0.14.0              # 이미지 줌/팬
+```
+
+## 🚀 실행 방법
+
+### Flutter 앱
+```bash
+flutter pub get
+flutter run
+```
+
+### Python 서버
+```bash
+# 패키지 설치
+pip install -r requirements.txt
+
+# 실제 BiRefNet 서버 실행 (GPU 권장)
+python server_birefnet.py
+
+# 또는 테스트용 서버 (모델 없이)
+python server_example.py
+```
+
+## 💡 API 서버 구현 계획 (API 방식 선택)
+
+### 1단계: BiRefNet 모델 서버 구축
+```python
+# 실제 구현 필요 (server.py)
+from fastapi import FastAPI, UploadFile, Response
+from transformers import AutoModelForImageSegmentation
+from PIL import Image
+import torch
+import numpy as np
+
+app = FastAPI()
+
+# BiRefNet 모델 로드
+model = AutoModelForImageSegmentation.from_pretrained(
+    "ZhengPeng7/BiRefNet",
+    trust_remote_code=True
+)
+
+@app.post("/remove-background")
+async def remove_bg(file: UploadFile):
+    # 1. 이미지 읽기
+    image = Image.open(file.file)
+    
+    # 2. BiRefNet으로 마스크 생성
+    mask = model.predict(image)
+    
+    # 3. 배경 제거 (투명 PNG)
+    result = apply_mask(image, mask)
+    
+    # 4. PNG 바이트로 반환
+    return Response(content=result, media_type="image/png")
+```
+
+### 2단계: 서버 배포 옵션
+
+**개발/테스트 (로컬)**
+```bash
+uvicorn server_birefnet:app --reload --host 0.0.0.0 --port 8000
+```
+
+**프로덕션 배포 - Hugging Face Spaces (추천)**
+
+1. Hugging Face 계정 생성
+2. 새 Space 생성 (Gradio 또는 Docker)
+3. 다음 파일 업로드:
+   - `server_birefnet.py`
+   - `requirements.txt`
+   - `Dockerfile` (아래 예시)
+
+```dockerfile
+# Dockerfile for Hugging Face Spaces
+FROM python:3.10
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY server_birefnet.py .
+
+EXPOSE 7860
+CMD ["uvicorn", "server_birefnet:app", "--host", "0.0.0.0", "--port", "7860"]
+```
+
+**기타 배포 옵션**
+- **AWS EC2**: GPU 인스턴스 (g4dn.xlarge) - 유료
+- **Google Cloud Run**: 서버리스 - CPU only
+- **Railway/Render**: 간편한 배포 - CPU only
+
+### 3단계: Flutter 앱 연동
+```dart
+// lib/services/api_service.dart (이미 구현됨)
+class ApiService {
+  // 개발: http://localhost:8000
+  // 프로덕션: https://api.cleancut.app
+  static const String baseUrl = 'YOUR_API_URL';
+  
+  Future<Uint8List?> removeBackground(File imageFile) async {
+    // 이미 구현 완료 ✅
+  }
+}
+```
+
+## 🎯 선택한 방식: API 서버
+
+### 장점
+- ✅ **앱 크기**: 15-20MB (가벼움)
+- ✅ **처리 속도**: 2-5초 (서버 GPU 사용)
+- ✅ **모델 업데이트**: 앱 업데이트 없이 가능
+- ✅ **크로스 플랫폼**: iOS/Android 동일 성능
+
+### 단점 및 해결책
+- ❌ 인터넷 연결 필요 → 오프라인 모드 추가 고려
+- ❌ 서버 비용 → 무료 티어 활용 (Hugging Face Spaces)
+- ❌ 개인정보 우려 → 이미지 즉시 삭제 정책
+
+## 📊 예상 성능
+
+- **처리 시간**: 2-5초 (이미지 크기에 따라)
+- **정확도**: 95%+ (BiRefNet-dynamic)
+- **지원 해상도**: 256x256 ~ 2304x2304
+- **일일 처리량**: 1000+ 이미지 (서버 사양에 따라)
+
 # Flutter 앱 개발 가이드라인
 
 ## 기술 스택
@@ -283,6 +495,25 @@ try {
 ```
 
 ## 빌드 및 배포
+
+### Android NDK 버전 충돌 해결
+
+Flutter 실행 시 NDK 버전 충돌 에러가 발생하는 경우:
+
+```
+Your project is configured with Android NDK X, but the following plugin(s) depend on a different Android NDK version
+```
+
+**해결 방법:** `android/app/build.gradle.kts` 파일에서 NDK 버전 고정
+
+```kotlin
+android {
+    namespace = "com.example.app"
+    compileSdk = flutter.compileSdkVersion
+    ndkVersion = "27.0.12077973"  // 에러 메시지에 나온 최신 버전으로 설정
+    // ...
+}
+```
 
 ### Android 빌드
 
