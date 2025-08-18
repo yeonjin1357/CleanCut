@@ -2,10 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/api_service.dart';
 import '../services/permission_service.dart';
+import '../services/ad_service.dart';
 import '../widgets/loading_overlay.dart';
 import '../utils/app_theme.dart';
 import 'editor_screen.dart';
@@ -19,7 +19,36 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final ImagePicker _picker = ImagePicker();
+  final AdService _adService = AdService();
   bool _isProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 배너 광고 로드 및 상태 업데이트
+    _loadAds();
+  }
+  
+  Future<void> _loadAds() async {
+    // 잠시 기다린 후 광고 로드 상태 확인
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (mounted) {
+      setState(() {});
+    }
+    
+    // 광고 로드 상태를 주기적으로 확인
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _adService.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -80,6 +109,11 @@ class _HomeScreenState extends State<HomeScreen> {
         });
 
         if (mounted && processedImage != null) {
+          // 전면 광고 표시 (준비되어 있을 때만)
+          if (_adService.isInterstitialAdReady) {
+            await _adService.showInterstitialAd();
+          }
+          
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -125,26 +159,29 @@ class _HomeScreenState extends State<HomeScreen> {
       body: LoadingOverlay(
         isLoading: _isProcessing,
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              children: [
-                // 상단 타이틀
-                const SizedBox(height: 20),
-                Text(
-                  'CleanCut',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryColor,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-
-                Expanded(
+          child: Column(
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      // 상단 타이틀
+                      const SizedBox(height: 20),
+                      Text(
+                        'CleanCut',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primaryColor,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
                       // 메인 업로드 카드
                       Container(
                         width: double.infinity,
@@ -285,8 +322,31 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
-      ),
-    );
+        // 배너 광고 영역
+        if (_adService.isBannerAdReady)
+          Container(
+            alignment: Alignment.center,
+            color: Colors.white,
+            width: MediaQuery.of(context).size.width,
+            height: 60,
+            child: _adService.getBannerAdWidget() ?? const SizedBox.shrink(),
+          )
+        else
+          Container(
+            height: 60,
+            color: Colors.grey[200],
+            child: const Center(
+              child: Text(
+                '광고 로딩 중...',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ),
+          ),
+      ],
+    ),
+  ),
+),
+);
   }
 
   Widget _buildFeatureChip(IconData icon, String label) {
