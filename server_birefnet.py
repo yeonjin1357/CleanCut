@@ -13,7 +13,7 @@ uvicorn server_birefnet:app --reload --host 0.0.0.0 --port 8000
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
-from PIL import Image
+from PIL import Image, ImageOps
 import io
 import torch
 import numpy as np
@@ -51,7 +51,7 @@ def load_model():
         # Hugging Face에서 BiRefNet 모델 로드
         from transformers import AutoModelForImageSegmentation, AutoProcessor
         
-        model_name = "ZhengPeng7/BiRefNet"
+        model_name = "ZhengPeng7/BiRefNet_HR"
         logger.info(f"Loading model: {model_name}")
         
         # 모델과 프로세서 로드
@@ -233,6 +233,29 @@ async def remove_background(
         contents = await file.read()
         image = Image.open(io.BytesIO(contents))
         
+        # EXIF 오리엔테이션 처리
+        try:
+            # EXIF 데이터에 따라 이미지 자동 회전
+            image = ImageOps.exif_transpose(image)
+        except Exception as e:
+            logger.debug(f"EXIF processing skipped: {e}")
+        
+        # 이미지 크기 체크
+        width, height = image.size
+        if width < 100 or height < 100:
+            raise HTTPException(status_code=400, detail="Image too small (minimum 100x100)")
+        if width > 4096 or height > 4096:
+            # 큰 이미지는 자동 리사이징
+            max_size = 2048
+            if width > height:
+                new_width = max_size
+                new_height = int(height * (max_size / width))
+            else:
+                new_height = max_size
+                new_width = int(width * (max_size / height))
+            image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            logger.info(f"Resized image from {width}x{height} to {new_width}x{new_height}")
+        
         # RGB로 변환 (RGBA 이미지 처리를 위해)
         if image.mode != 'RGB':
             image = image.convert('RGB')
@@ -281,6 +304,26 @@ async def remove_background_batch(files: list[UploadFile] = File(...)):
             # 각 파일 처리
             contents = await file.read()
             image = Image.open(io.BytesIO(contents))
+            
+            # EXIF 오리엔테이션 처리
+            try:
+                image = ImageOps.exif_transpose(image)
+            except Exception as e:
+                logger.debug(f"EXIF processing skipped: {e}")
+            
+            # 이미지 크기 체크 및 리사이징
+            width, height = image.size
+            if width < 100 or height < 100:
+                raise ValueError("Image too small")
+            if width > 4096 or height > 4096:
+                max_size = 2048
+                if width > height:
+                    new_width = max_size
+                    new_height = int(height * (max_size / width))
+                else:
+                    new_height = max_size
+                    new_width = int(width * (max_size / height))
+                image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
             
             if image.mode != 'RGB':
                 image = image.convert('RGB')
