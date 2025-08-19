@@ -8,13 +8,13 @@ class AdService {
   factory AdService() => _instance;
   AdService._internal();
 
-  // 테스트 광고 ID
-  static const String _testBannerAdUnitId = 'ca-app-pub-3940256099942544/6300978111';
-  static const String _testInterstitialAdUnitId = 'ca-app-pub-3940256099942544/1033173712';
+  // 테스트 광고 ID (public으로 변경)
+  static const String bannerAdUnitId = 'ca-app-pub-3940256099942544/6300978111';
+  static const String interstitialAdUnitId = 'ca-app-pub-3940256099942544/1033173712';
 
   // 실제 광고 ID (나중에 교체)
-  // static const String _bannerAdUnitId = 'YOUR_ACTUAL_BANNER_AD_ID';
-  // static const String _interstitialAdUnitId = 'YOUR_ACTUAL_INTERSTITIAL_AD_ID';
+  // static const String bannerAdUnitId = 'YOUR_ACTUAL_BANNER_AD_ID';
+  // static const String interstitialAdUnitId = 'YOUR_ACTUAL_INTERSTITIAL_AD_ID';
 
   BannerAd? _bannerAd;
   InterstitialAd? _interstitialAd;
@@ -36,7 +36,7 @@ class AdService {
   // 배너 광고 로드
   void loadBannerAd() {
     _bannerAd = BannerAd(
-      adUnitId: _testBannerAdUnitId, // 테스트 ID 사용
+      adUnitId: bannerAdUnitId, // 테스트 ID 사용
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
@@ -72,7 +72,7 @@ class AdService {
   // 전면 광고 로드
   void loadInterstitialAd() {
     InterstitialAd.load(
-      adUnitId: _testInterstitialAdUnitId, // 테스트 ID 사용
+      adUnitId: interstitialAdUnitId, // 테스트 ID 사용
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (InterstitialAd ad) {

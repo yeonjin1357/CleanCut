@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../utils/app_theme.dart';
+import '../services/ad_service.dart';
 
 class LoadingOverlay extends StatefulWidget {
   final bool isLoading;
@@ -22,12 +24,14 @@ class _LoadingOverlayState extends State<LoadingOverlay>
     with SingleTickerProviderStateMixin {
   late AnimationController _progressController;
   late Animation<double> _progressAnimation;
+  BannerAd? _bannerAd;
+  bool _isAdLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _progressController = AnimationController(
-      duration: const Duration(seconds: 40), // 30초 동안 진행
+      duration: const Duration(seconds: 40), // 40초 동안 진행
       vsync: this,
     );
 
@@ -40,19 +44,49 @@ class _LoadingOverlayState extends State<LoadingOverlay>
         );
   }
 
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: AdService.bannerAdUnitId,
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (Ad ad) {
+          setState(() {
+            _isAdLoaded = true;
+          });
+        },
+        onAdFailedToLoad: (Ad ad, LoadAdError error) {
+          print('Banner ad failed to load: $error');
+          ad.dispose();
+          setState(() {
+            _isAdLoaded = false;
+          });
+        },
+      ),
+    );
+    _bannerAd?.load();
+  }
+
   @override
   void didUpdateWidget(LoadingOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isLoading && !oldWidget.isLoading) {
       _progressController.forward(from: 0.0);
+      _loadBannerAd(); // 로딩 시작 시 광고 로드
     } else if (!widget.isLoading && oldWidget.isLoading) {
       _progressController.reset();
+      _bannerAd?.dispose(); // 로딩 종료 시 광고 정리
+      setState(() {
+        _isAdLoaded = false;
+        _bannerAd = null;
+      });
     }
   }
 
   @override
   void dispose() {
     _progressController.dispose();
+    _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -125,6 +159,15 @@ class _LoadingOverlayState extends State<LoadingOverlay>
                       ],
                     ),
                   ),
+                  const SizedBox(height: 40),
+                  // 배너 광고 추가
+                  if (_isAdLoaded && _bannerAd != null)
+                    Container(
+                      alignment: Alignment.center,
+                      width: _bannerAd!.size.width.toDouble(),
+                      height: _bannerAd!.size.height.toDouble(),
+                      child: AdWidget(ad: _bannerAd!),
+                    ),
                 ],
               ),
             ),
