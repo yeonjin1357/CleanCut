@@ -200,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: SvgPicture.asset(
-                                'assets/icons/app_icon.svg',
+                                'assets/icons/app_icon_square.svg',
                                 width: 80,
                                 height: 80,
                               ),
