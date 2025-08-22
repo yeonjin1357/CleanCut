@@ -8,40 +8,31 @@ class LoadingOverlay extends StatefulWidget {
   final bool isLoading;
   final Widget child;
   final String? message;
+  final double? progress;
+  final String? stage;
 
   const LoadingOverlay({
     super.key,
     required this.isLoading,
     required this.child,
     this.message,
+    this.progress,
+    this.stage,
   });
 
   @override
   State<LoadingOverlay> createState() => _LoadingOverlayState();
 }
 
-class _LoadingOverlayState extends State<LoadingOverlay>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _progressController;
-  late Animation<double> _progressAnimation;
+class _LoadingOverlayState extends State<LoadingOverlay> {
   BannerAd? _bannerAd;
   bool _isAdLoaded = false;
+  DateTime? _startTime;
+  String _elapsedTime = '';
 
   @override
   void initState() {
     super.initState();
-    _progressController = AnimationController(
-      duration: const Duration(seconds: 40), // 40초 동안 진행
-      vsync: this,
-    );
-
-    _progressAnimation =
-        Tween<double>(
-          begin: 0.0,
-          end: 0.95, // 95%까지만 채우고 대기
-        ).animate(
-          CurvedAnimation(parent: _progressController, curve: Curves.easeInOut),
-        );
   }
 
   void _loadBannerAd() {
@@ -56,7 +47,6 @@ class _LoadingOverlayState extends State<LoadingOverlay>
           });
         },
         onAdFailedToLoad: (Ad ad, LoadAdError error) {
-          print('Banner ad failed to load: $error');
           ad.dispose();
           setState(() {
             _isAdLoaded = false;
@@ -71,23 +61,60 @@ class _LoadingOverlayState extends State<LoadingOverlay>
   void didUpdateWidget(LoadingOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isLoading && !oldWidget.isLoading) {
-      _progressController.forward(from: 0.0);
       _loadBannerAd(); // 로딩 시작 시 광고 로드
+      _startTime = DateTime.now();
+      _updateElapsedTime();
     } else if (!widget.isLoading && oldWidget.isLoading) {
-      _progressController.reset();
       _bannerAd?.dispose(); // 로딩 종료 시 광고 정리
       setState(() {
         _isAdLoaded = false;
         _bannerAd = null;
+        _startTime = null;
+        _elapsedTime = '';
       });
     }
+  }
+  
+  void _updateElapsedTime() {
+    if (!widget.isLoading || _startTime == null) return;
+    
+    Future.delayed(const Duration(seconds: 1), () {
+      if (!mounted || !widget.isLoading) return;
+      
+      final elapsed = DateTime.now().difference(_startTime!);
+      final seconds = elapsed.inSeconds;
+      setState(() {
+        if (seconds < 60) {
+          _elapsedTime = '${seconds}초';
+        } else {
+          final minutes = seconds ~/ 60;
+          final remainingSeconds = seconds % 60;
+          _elapsedTime = '${minutes}분 ${remainingSeconds}초';
+        }
+      });
+      _updateElapsedTime();
+    });
   }
 
   @override
   void dispose() {
-    _progressController.dispose();
     _bannerAd?.dispose();
     super.dispose();
+  }
+  
+  String _getStageMessage() {
+    switch (widget.stage) {
+      case 'uploading':
+        return '이미지를 업로드하고 있어요';
+      case 'processing':
+        return '꼼꼼하게 배경을 제거하고 있어요';
+      case 'downloading':
+        return '거의 완료되었어요';
+      case 'completed':
+        return '완료!';
+      default:
+        return widget.message ?? '꼼꼼하게 배경을 제거하고 있어요';
+    }
   }
 
   @override
@@ -105,7 +132,7 @@ class _LoadingOverlayState extends State<LoadingOverlay>
                   SpinKitFadingCircle(color: AppTheme.primaryColor, size: 60),
                   const SizedBox(height: 30),
                   Text(
-                    widget.message ?? '꼼꼼하게 배경을 제거하고 있어요',
+                    _getStageMessage(),
                     style: const TextStyle(
                       color: AppTheme.textPrimary,
                       fontSize: 16,
@@ -114,47 +141,51 @@ class _LoadingOverlayState extends State<LoadingOverlay>
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    '잠시만 기다려주세요',
+                    _startTime != null && DateTime.now().difference(_startTime!).inSeconds > 30
+                        ? '처리에 시간이 걸릴 수 있어요 ($_elapsedTime)'
+                        : '잠시만 기다려주세요',
                     style: TextStyle(
                       color: AppTheme.textSecondary,
                       fontSize: 14,
                     ),
                   ),
+                  if (_startTime != null && DateTime.now().difference(_startTime!).inSeconds > 60)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        '무료 서버는 처리 속도가 느릴 수 있어요',
+                        style: TextStyle(
+                          color: AppTheme.textSecondary.withOpacity(0.7),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 30),
                   // 진행바 추가
                   Container(
                     width: 200,
                     child: Column(
                       children: [
-                        AnimatedBuilder(
-                          animation: _progressAnimation,
-                          builder: (context, child) {
-                            return Column(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: LinearProgressIndicator(
-                                    value: _progressAnimation.value,
-                                    minHeight: 6,
-                                    backgroundColor: AppTheme.primaryColor
-                                        .withOpacity(0.1),
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      AppTheme.primaryColor,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  '${(_progressAnimation.value * 100).toInt()}%',
-                                  style: TextStyle(
-                                    color: AppTheme.textSecondary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: LinearProgressIndicator(
+                            value: widget.progress ?? 0.0,
+                            minHeight: 6,
+                            backgroundColor: AppTheme.primaryColor
+                                .withOpacity(0.1),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppTheme.primaryColor,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${((widget.progress ?? 0.0) * 100).toInt()}%',
+                          style: TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),

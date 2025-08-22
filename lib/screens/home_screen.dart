@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:image/image.dart' as img;
+import 'package:path_provider/path_provider.dart';
 import '../config/app_config.dart';
 import '../services/api_service.dart';
 import '../services/permission_service.dart';
@@ -25,7 +26,11 @@ class _HomeScreenState extends State<HomeScreen> {
   final ImagePicker _picker = ImagePicker();
   final AdService _adService = AdService();
   bool _isProcessing = false;
+  double _processingProgress = 0.0;
+  String _processingStage = '';
   int _processCount = 0;
+  XFile? _lastPickedImage; // 재시도를 위해 마지막 선택 이미지 저장
+  File? _lastPickedFile; // 파일 탐색기에서 선택한 파일
 
   @override
   void initState() {
@@ -35,14 +40,24 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadAds() async {
+    // 배너 광고가 준비되지 않았으면 로드
+    if (!_adService.isBannerAdReady) {
+      _adService.loadBannerAd();
+    }
+
+    // 전면 광고가 준비되지 않았으면 로드
+    if (!_adService.isInterstitialAdReady) {
+      _adService.loadInterstitialAd();
+    }
+
     // 잠시 기다린 후 광고 로드 상태 확인
-    await Future.delayed(const Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 500));
     if (mounted) {
       setState(() {});
     }
 
-    // 광고 로드 상태를 주기적으로 확인
-    Future.delayed(const Duration(seconds: 2), () {
+    // 광고 로드 상태를 주기적으로 확인 (더 긴 시간)
+    Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         setState(() {});
       }
@@ -65,32 +80,48 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (result != null && result.files.single.path != null) {
         final File imageFile = File(result.files.single.path!);
+        _lastPickedFile = imageFile; // 재시도를 위해 저장
 
         setState(() {
           _isProcessing = true;
+          _processingProgress = 0.0;
+          _processingStage = 'uploading';
         });
 
         // API 호출
         final apiService = ApiService();
-        final processedImage = await apiService.removeBackground(imageFile);
+        final processedImage = await apiService.removeBackground(
+          imageFile,
+          onProgress: (progress, stage) {
+            if (mounted) {
+              setState(() {
+                _processingProgress = progress;
+                _processingStage = stage;
+              });
+            }
+          },
+        );
 
         if (processedImage != null && mounted) {
           // 전면 광고 표시 (3번에 1번)
           _processCount++;
           if (_processCount % 3 == 0) {
             await _adService.showInterstitialAd();
+            await Future.delayed(const Duration(milliseconds: 500));
           }
 
           // 결과 화면으로 이동
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => EditorScreen(
-                originalImage: imageFile,
-                processedImage: processedImage,
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => EditorScreen(
+                  originalImage: imageFile,
+                  processedImage: processedImage,
+                ),
               ),
-            ),
-          );
+            );
+          }
         } else if (mounted) {
           _showErrorSnackBar('배경 제거에 실패했습니다');
         }
@@ -98,6 +129,8 @@ class _HomeScreenState extends State<HomeScreen> {
         if (mounted) {
           setState(() {
             _isProcessing = false;
+            _processingProgress = 0.0;
+            _processingStage = '';
           });
         }
       }
@@ -105,6 +138,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _isProcessing = false;
+          _processingProgress = 0.0;
+          _processingStage = '';
         });
         _showErrorSnackBar('오류가 발생했습니다: ${e.toString()}');
       }
@@ -156,37 +191,45 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
       if (image != null) {
+        _lastPickedImage = image; // 재시도를 위해 저장
         setState(() {
           _isProcessing = true;
+          _processingProgress = 0.0;
+          _processingStage = 'uploading';
         });
 
         // 이미지 크기 체크 및 리사이징
         File imageFile = File(image.path);
-        
+        File originalImageFile = File(image.path); // 원본 이미지 보존
+
         try {
           // 이미지 읽기
           final bytes = await imageFile.readAsBytes();
           final decodedImage = await decodeImageFromList(bytes);
-          
+
           // 최소 크기 체크
-          if (decodedImage.width < AppConfig.minImageSize || 
+          if (decodedImage.width < AppConfig.minImageSize ||
               decodedImage.height < AppConfig.minImageSize) {
             setState(() {
               _isProcessing = false;
+              _processingProgress = 0.0;
+              _processingStage = '';
             });
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('이미지가 너무 작습니다 (최소 ${AppConfig.minImageSize}x${AppConfig.minImageSize}px)'),
+                  content: Text(
+                    '이미지가 너무 작습니다 (최소 ${AppConfig.minImageSize}x${AppConfig.minImageSize}px)',
+                  ),
                   backgroundColor: Colors.red,
                 ),
               );
             }
             return;
           }
-          
+
           // 크기가 너무 크면 리사이징
-          if (decodedImage.width > AppConfig.maxImageWidth || 
+          if (decodedImage.width > AppConfig.maxImageWidth ||
               decodedImage.height > AppConfig.maxImageHeight) {
             // 리사이징 필요
             final img.Image? originalImage = img.decodeImage(bytes);
@@ -194,16 +237,25 @@ class _HomeScreenState extends State<HomeScreen> {
               // 비율 유지하면서 리사이징
               img.Image resized;
               if (originalImage.width > originalImage.height) {
-                resized = img.copyResize(originalImage, width: AppConfig.targetImageSize);
+                resized = img.copyResize(
+                  originalImage,
+                  width: AppConfig.targetImageSize,
+                );
               } else {
-                resized = img.copyResize(originalImage, height: AppConfig.targetImageSize);
+                resized = img.copyResize(
+                  originalImage,
+                  height: AppConfig.targetImageSize,
+                );
               }
-              
-              // 임시 파일로 저장
-              final tempFile = File('${imageFile.path}_resized.jpg');
+
+              // 임시 파일로 저장 (적절한 임시 디렉토리 사용)
+              final Directory tempDir = await getTemporaryDirectory();
+              final String fileName =
+                  'resized_${DateTime.now().millisecondsSinceEpoch}.jpg';
+              final tempFile = File('${tempDir.path}/$fileName');
               await tempFile.writeAsBytes(img.encodeJpg(resized, quality: 95));
               imageFile = tempFile;
-              
+
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -217,6 +269,8 @@ class _HomeScreenState extends State<HomeScreen> {
         } catch (e) {
           setState(() {
             _isProcessing = false;
+            _processingProgress = 0.0;
+            _processingStage = '';
           });
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -231,38 +285,88 @@ class _HomeScreenState extends State<HomeScreen> {
 
         // API 호출하여 배경 제거
         final apiService = ApiService();
-        final processedImage = await apiService.removeBackground(imageFile);
+        final processedImage = await apiService.removeBackground(
+          imageFile,
+          onProgress: (progress, stage) {
+            if (mounted) {
+              setState(() {
+                _processingProgress = progress;
+                _processingStage = stage;
+              });
+            }
+          },
+        );
 
         setState(() {
           _isProcessing = false;
+          _processingProgress = 0.0;
+          _processingStage = '';
         });
 
         if (mounted && processedImage != null) {
           // 전면 광고 표시 (3번에 1번)
           _processCount++;
-          if (_processCount % 3 == 0 && _adService.isInterstitialAdReady) {
+          if (_processCount % 3 == 0) {
             await _adService.showInterstitialAd();
+            await Future.delayed(const Duration(milliseconds: 500));
           }
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => EditorScreen(
-                originalImage: File(image.path),
-                processedImage: processedImage,
+
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => EditorScreen(
+                  originalImage: originalImageFile, // 원본 이미지 파일 사용
+                  processedImage: processedImage,
+                ),
               ),
-            ),
-          );
+            );
+          }
         }
       }
     } catch (e) {
       setState(() {
         _isProcessing = false;
+        _processingProgress = 0.0;
+        _processingStage = '';
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('오류가 발생했습니다: $e')));
+        String errorMessage = '오류가 발생했습니다';
+
+        // 에러 메시지 분석
+        final errorString = e.toString();
+        if (errorString.contains('응답 시간이 초과') ||
+            errorString.contains('receiveTimeout') ||
+            errorString.contains('timeout')) {
+          errorMessage = '처리 시간이 너무 오래 걸려요\n\ud83d\udca1 더 작은 이미지를 사용해보세요';
+        } else if (errorString.contains('서버에 연결할 수 없')) {
+          errorMessage = '서버에 연결할 수 없어요\n인터넷 연결을 확인해주세요';
+        } else if (errorString.contains('이미지 크기가 너무')) {
+          errorMessage = '이미지가 너무 커요 (10MB 이하만 가능)';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            duration: const Duration(seconds: 5),
+            action:
+                errorString.contains('응답 시간이 초과') ||
+                    errorString.contains('timeout')
+                ? SnackBarAction(
+                    label: '다시 시도',
+                    onPressed: () {
+                      // 마지막으로 선택한 이미지 다시 처리
+                      if (_lastPickedImage != null) {
+                        _pickImage(ImageSource.gallery);
+                      } else if (_lastPickedFile != null) {
+                        _pickImageFromFilePicker();
+                      }
+                    },
+                  )
+                : null,
+          ),
+        );
       }
     }
   }
@@ -295,6 +399,8 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: AppTheme.backgroundColor,
       body: LoadingOverlay(
         isLoading: _isProcessing,
+        progress: _processingProgress,
+        stage: _processingStage,
         child: SafeArea(
           child: Column(
             children: [
@@ -512,26 +618,30 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               // 배너 광고 영역
-              if (_adService.isBannerAdReady)
-                Container(
-                  alignment: Alignment.center,
-                  color: Colors.white,
-                  width: MediaQuery.of(context).size.width,
-                  height: 60,
-                  child:
-                      _adService.getBannerAdWidget() ?? const SizedBox.shrink(),
-                )
-              else
-                Container(
-                  height: 60,
-                  color: Colors.grey[200],
-                  child: const Center(
-                    child: Text(
-                      '광고 로딩 중...',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
-                  ),
-                ),
+              Container(
+                height: 60,
+                width: MediaQuery.of(context).size.width,
+                color: _adService.isBannerAdReady
+                    ? Colors.white
+                    : Colors.grey[200],
+                child: _adService.isBannerAdReady
+                    ? (_adService.getBannerAdWidget() ??
+                          const Center(
+                            child: Text(
+                              '광고 로딩 중...',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ))
+                    : const Center(
+                        child: Text(
+                          '광고 로딩 중...',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      ),
+              ),
             ],
           ),
         ),

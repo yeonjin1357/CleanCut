@@ -28,42 +28,38 @@ class AdService {
   // AdMob 초기화
   Future<void> initialize() async {
     await MobileAds.instance.initialize();
-    if (kDebugMode) {
-      print('AdMob initialized');
-    }
   }
 
   // 배너 광고 로드
   void loadBannerAd() {
+    if (_bannerAd != null) {
+      _bannerAd!.dispose();
+      _bannerAd = null;
+      _isBannerAdReady = false;
+    }
+    
     _bannerAd = BannerAd(
-      adUnitId: bannerAdUnitId, // 테스트 ID 사용
+      adUnitId: bannerAdUnitId,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (Ad ad) {
-          if (kDebugMode) {
-            print('Banner ad loaded');
-          }
           _isBannerAdReady = true;
         },
         onAdFailedToLoad: (Ad ad, LoadAdError error) {
-          if (kDebugMode) {
-            print('Banner ad failed to load: $error');
-          }
           ad.dispose();
           _isBannerAdReady = false;
           _bannerAd = null;
+          
+          // 3초 후 재시도
+          Future.delayed(const Duration(seconds: 3), () {
+            if (_bannerAd == null) {
+              loadBannerAd();
+            }
+          });
         },
-        onAdOpened: (Ad ad) {
-          if (kDebugMode) {
-            print('Banner ad opened');
-          }
-        },
-        onAdClosed: (Ad ad) {
-          if (kDebugMode) {
-            print('Banner ad closed');
-          }
-        },
+        onAdOpened: (Ad ad) {},
+        onAdClosed: (Ad ad) {},
       ),
     );
     _bannerAd!.load();
@@ -76,38 +72,36 @@ class AdService {
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (InterstitialAd ad) {
-          if (kDebugMode) {
-            print('Interstitial ad loaded');
-          }
           _interstitialAd = ad;
           _isInterstitialAdReady = true;
           
           // 전면 광고 리스너 설정
           _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
             onAdDismissedFullScreenContent: (InterstitialAd ad) {
-              if (kDebugMode) {
-                print('Interstitial ad dismissed');
-              }
               ad.dispose();
               _isInterstitialAdReady = false;
+              _interstitialAd = null;
               // 다음 광고를 위해 미리 로드
               loadInterstitialAd();
             },
             onAdFailedToShowFullScreenContent: (InterstitialAd ad, AdError error) {
-              if (kDebugMode) {
-                print('Interstitial ad failed to show: $error');
-              }
               ad.dispose();
               _isInterstitialAdReady = false;
+              _interstitialAd = null;
               loadInterstitialAd();
             },
           );
         },
         onAdFailedToLoad: (LoadAdError error) {
-          if (kDebugMode) {
-            print('Interstitial ad failed to load: $error');
-          }
           _isInterstitialAdReady = false;
+          _interstitialAd = null;
+          
+          // 5초 후 재시도
+          Future.delayed(const Duration(seconds: 5), () {
+            if (_interstitialAd == null) {
+              loadInterstitialAd();
+            }
+          });
         },
       ),
     );
@@ -116,11 +110,12 @@ class AdService {
   // 전면 광고 표시
   Future<void> showInterstitialAd() async {
     if (_isInterstitialAdReady && _interstitialAd != null) {
-      await _interstitialAd!.show();
-    } else {
-      if (kDebugMode) {
-        print('Interstitial ad is not ready yet');
+      try {
+        await _interstitialAd!.show();
+      } catch (e) {
+        // 에러 발생 시 처리
       }
+    } else {
       // 광고가 준비되지 않았으면 다시 로드 시도
       loadInterstitialAd();
     }
@@ -128,16 +123,23 @@ class AdService {
 
   // 배너 광고 위젯 반환
   Widget? getBannerAdWidget() {
-    if (kDebugMode) {
-      print('Getting banner ad widget: ready=$_isBannerAdReady, ad=${_bannerAd != null}');
-    }
     if (_isBannerAdReady && _bannerAd != null) {
-      return Container(
-        alignment: Alignment.center,
-        width: _bannerAd!.size.width.toDouble(),
-        height: _bannerAd!.size.height.toDouble(),
-        child: AdWidget(ad: _bannerAd!),
-      );
+      try {
+        return Container(
+          alignment: Alignment.center,
+          width: _bannerAd!.size.width.toDouble(),
+          height: _bannerAd!.size.height.toDouble(),
+          child: AdWidget(ad: _bannerAd!),
+        );
+      } catch (e) {
+        _isBannerAdReady = false;
+        _bannerAd = null;
+        loadBannerAd();
+        return null;
+      }
+    }
+    if (_bannerAd == null) {
+      loadBannerAd();
     }
     return null;
   }
