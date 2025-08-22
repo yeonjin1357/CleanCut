@@ -17,9 +17,12 @@ class AdService {
   static const String _prodBannerAdUnitId = 'YOUR_ACTUAL_BANNER_AD_ID';
   static const String _prodInterstitialAdUnitId = 'YOUR_ACTUAL_INTERSTITIAL_AD_ID';
   
-  // 현재 사용할 광고 ID (개발/프로덕션 자동 전환)
-  String get bannerAdUnitId => kDebugMode ? _testBannerAdUnitId : _prodBannerAdUnitId;
-  String get interstitialAdUnitId => kDebugMode ? _testInterstitialAdUnitId : _prodInterstitialAdUnitId;
+  // 현재 사용할 광고 ID (임시로 모든 환경에서 테스트 ID 사용)
+  // TODO: 실제 광고 ID 받으면 아래 주석 해제하고 위 라인 삭제
+  String get bannerAdUnitId => _testBannerAdUnitId;  // 임시: 테스트 광고
+  String get interstitialAdUnitId => _testInterstitialAdUnitId;  // 임시: 테스트 광고
+  // String get bannerAdUnitId => kDebugMode ? _testBannerAdUnitId : _prodBannerAdUnitId;
+  // String get interstitialAdUnitId => kDebugMode ? _testInterstitialAdUnitId : _prodInterstitialAdUnitId;
 
   // 광고 인스턴스
   BannerAd? _homeBannerAd;
