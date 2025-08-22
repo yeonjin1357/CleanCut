@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:gal/gal.dart';
+import 'package:image/image.dart' as img;
 import '../services/permission_service.dart';
 import '../services/ad_service.dart';
 import '../utils/app_theme.dart';
@@ -29,12 +30,30 @@ class _EditorScreenState extends State<EditorScreen> {
   bool _showOriginal = false;
   bool _isSaving = false;
   final AdService _adService = AdService();
+  int _rotationAngle = 0; // 0, 90, 180, 270
+  Uint8List? _rotatedImage;
+  Uint8List? _rotatedOriginalImage;
+  bool _isRotating = false;
   
   @override
   void initState() {
     super.initState();
+    // 초기 이미지 설정
+    _rotatedImage = widget.processedImage;
+    _loadOriginalImageBytes();
     // 배너 광고 로드
     _loadAds();
+  }
+
+  Future<void> _loadOriginalImageBytes() async {
+    try {
+      final bytes = await widget.originalImage.readAsBytes();
+      setState(() {
+        _rotatedOriginalImage = bytes;
+      });
+    } catch (e) {
+      print('Error loading original image bytes: $e');
+    }
   }
   
   @override
@@ -57,6 +76,85 @@ class _EditorScreenState extends State<EditorScreen> {
       }
       setState(() {});
     });
+  }
+
+  Future<void> _rotateImage(bool clockwise) async {
+    if (_isRotating) return;
+    
+    setState(() {
+      _isRotating = true;
+    });
+
+    try {
+      // 회전 각도 업데이트
+      if (clockwise) {
+        _rotationAngle = (_rotationAngle + 90) % 360;
+      } else {
+        _rotationAngle = (_rotationAngle - 90) % 360;
+        if (_rotationAngle < 0) _rotationAngle += 360;
+      }
+
+      // 처리된 이미지 회전
+      final processedImg = img.decodeImage(widget.processedImage);
+      if (processedImg != null) {
+        img.Image rotatedProcessed;
+        
+        // 누적 회전 각도에 따라 회전
+        switch (_rotationAngle) {
+          case 90:
+            rotatedProcessed = img.copyRotate(processedImg, angle: 90);
+            break;
+          case 180:
+            rotatedProcessed = img.copyRotate(processedImg, angle: 180);
+            break;
+          case 270:
+            rotatedProcessed = img.copyRotate(processedImg, angle: 270);
+            break;
+          default:
+            rotatedProcessed = processedImg;
+        }
+        
+        _rotatedImage = Uint8List.fromList(img.encodePng(rotatedProcessed));
+      }
+
+      // 원본 이미지도 회전
+      final originalBytes = await widget.originalImage.readAsBytes();
+      final originalImg = img.decodeImage(originalBytes);
+      if (originalImg != null) {
+        img.Image rotatedOriginal;
+        
+        switch (_rotationAngle) {
+          case 90:
+            rotatedOriginal = img.copyRotate(originalImg, angle: 90);
+            break;
+          case 180:
+            rotatedOriginal = img.copyRotate(originalImg, angle: 180);
+            break;
+          case 270:
+            rotatedOriginal = img.copyRotate(originalImg, angle: 270);
+            break;
+          default:
+            rotatedOriginal = originalImg;
+        }
+        
+        // 원본 이미지는 JPG로 저장 (파일 크기 최적화)
+        _rotatedOriginalImage = Uint8List.fromList(img.encodeJpg(rotatedOriginal, quality: 95));
+      }
+    } catch (e) {
+      print('Error rotating image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('회전 실패: ${e.toString()}'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isRotating = false;
+      });
+    }
   }
 
   Future<void> _saveImage() async {
@@ -111,7 +209,7 @@ class _EditorScreenState extends State<EditorScreen> {
             // 먼저 임시 파일로 저장
             final tempDir = await getTemporaryDirectory();
             final tempFile = File('${tempDir.path}/$fileName');
-            await tempFile.writeAsBytes(widget.processedImage);
+            await tempFile.writeAsBytes(_rotatedImage ?? widget.processedImage);
 
             // 갤러리에 저장
             await Gal.putImage(tempFile.path, album: 'CleanCut');
@@ -130,7 +228,7 @@ class _EditorScreenState extends State<EditorScreen> {
         final downloadsDir = await getDownloadsDirectory();
         if (downloadsDir != null) {
           final file = File('${downloadsDir.path}/$fileName');
-          await file.writeAsBytes(widget.processedImage);
+          await file.writeAsBytes(_rotatedImage ?? widget.processedImage);
           result = true;
           message = 'Downloads 폴더에 저장되었습니다';
         }
@@ -300,12 +398,91 @@ class _EditorScreenState extends State<EditorScreen> {
                           color: Colors.transparent,
                         ),
                         imageProvider: _showOriginal
-                            ? FileImage(widget.originalImage)
-                            : MemoryImage(widget.processedImage)
+                            ? (_rotatedOriginalImage != null 
+                                ? MemoryImage(_rotatedOriginalImage!) 
+                                : FileImage(widget.originalImage))
+                                  as ImageProvider
+                            : MemoryImage(_rotatedImage ?? widget.processedImage)
                                   as ImageProvider,
                         minScale: PhotoViewComputedScale.contained,
                         maxScale: PhotoViewComputedScale.covered * 4,
                       ),
+
+                      // 회전 버튼들
+                      if (!_showOriginal)
+                        Positioned(
+                          bottom: 16,
+                          left: 0,
+                          right: 0,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              // 반시계 방향 회전
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.15),
+                                      blurRadius: 10,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(24),
+                                    onTap: _isRotating ? null : () => _rotateImage(false),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Icon(
+                                        Icons.rotate_left,
+                                        size: 24,
+                                        color: _isRotating 
+                                            ? AppTheme.textSecondary 
+                                            : AppTheme.primaryColor,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 20),
+                              // 시계 방향 회전
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.15),
+                                      blurRadius: 10,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(24),
+                                    onTap: _isRotating ? null : () => _rotateImage(true),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Icon(
+                                        Icons.rotate_right,
+                                        size: 24,
+                                        color: _isRotating 
+                                            ? AppTheme.textSecondary 
+                                            : AppTheme.primaryColor,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
 
                       // 원본/결과 전환 버튼
                       Positioned(
