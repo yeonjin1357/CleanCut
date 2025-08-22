@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -28,7 +29,6 @@ class _EditorScreenState extends State<EditorScreen> {
   bool _showOriginal = false;
   bool _isSaving = false;
   final AdService _adService = AdService();
-  int _actionCount = 0;  // 저장/공유 횟수 추적
   
   @override
   void initState() {
@@ -37,38 +37,35 @@ class _EditorScreenState extends State<EditorScreen> {
     _loadAds();
   }
   
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 적응형 배너 크기 업데이트
+    _adService.updateAdaptiveBannerSize(context);
+  }
+  
   Future<void> _loadAds() async {
-    // 배너 광고가 준비되지 않았으면 로드
-    if (!_adService.isBannerAdReady) {
-      _adService.loadBannerAd();
-    }
+    // 적응형 배너 크기 설정 후 광고 로드
+    await _adService.updateAdaptiveBannerSize(context);
     
-    // 전면 광고가 준비되지 않았으면 로드
-    if (!_adService.isInterstitialAdReady) {
-      _adService.loadInterstitialAd();
-    }
-    
-    // 잠시 기다린 후 광고 로드 상태 확인
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (mounted) {
-      setState(() {});
-    }
-    
-    // 광고 로드 상태를 주기적으로 확인
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {});
+    // 광고는 AdService에서 자동으로 미리 로드됨
+    // 주기적으로 상태 업데이트
+    Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
       }
+      setState(() {});
     });
   }
 
   Future<void> _saveImage() async {
     setState(() => _isSaving = true);
     
-    // 전면 광고 표시 (3번에 1번)
-    _actionCount++;
-    if (_actionCount % 3 == 0) {
+    // 전면 광고 표시 시도
+    if (_adService.isInterstitialAdReady) {
       await _adService.showInterstitialAd();
+      // 광고가 닫힐 때까지 잠시 대기
       await Future.delayed(const Duration(milliseconds: 500));
     }
 
@@ -181,10 +178,10 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Future<void> _shareImage() async {
-    // 전면 광고 표시 (5번에 1번)
-    _actionCount++;
-    if (_actionCount % 5 == 0) {
+    // 전면 광고 표시 시도
+    if (_adService.isInterstitialAdReady) {
       await _adService.showInterstitialAd();
+      // 광고가 닫힐 때까지 잠시 대기
       await Future.delayed(const Duration(milliseconds: 500));
     }
     
@@ -371,31 +368,14 @@ class _EditorScreenState extends State<EditorScreen> {
               ),
             ),
 
-            // 배너 광고 영역
-            Container(
-              height: 60,
-              width: MediaQuery.of(context).size.width,
-              color: _adService.isBannerAdReady
-                  ? Colors.white
-                  : Colors.grey[200],
-              child: _adService.isBannerAdReady
-                  ? (_adService.getBannerAdWidget() ??
-                      const Center(
-                        child: Text(
-                          '광고 로딩 중...',
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ))
-                  : const Center(
-                      child: Text(
-                        '광고 로딩 중...',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                    ),
-            ),
+            // 배너 광고 영역 - 광고가 준비되면만 표시
+            if (_adService.isEditorBannerAdReady)
+              Container(
+                height: 60,
+                width: MediaQuery.of(context).size.width,
+                color: Colors.white,
+                child: _adService.getEditorBannerAdWidget() ?? const SizedBox.shrink(),
+              ),
             
             // 하단 액션 버튼들
             Container(

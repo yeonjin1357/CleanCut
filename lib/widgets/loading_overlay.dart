@@ -37,7 +37,7 @@ class _LoadingOverlayState extends State<LoadingOverlay> {
 
   void _loadBannerAd() {
     _bannerAd = BannerAd(
-      adUnitId: AdService.bannerAdUnitId,
+      adUnitId: AdService().bannerAdUnitId,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(

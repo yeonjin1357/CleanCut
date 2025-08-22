@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/home_screen.dart';
 import 'utils/app_theme.dart';
 import 'services/ad_service.dart';
@@ -6,13 +7,12 @@ import 'services/ad_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // 환경 변수 로드
+  await dotenv.load(fileName: ".env");
+  
   // AdMob 초기화
   final adService = AdService();
   await adService.initialize();
-  
-  // 광고 미리 로드
-  adService.loadBannerAd();
-  adService.loadInterstitialAd();
   
   runApp(const MyApp());
 }

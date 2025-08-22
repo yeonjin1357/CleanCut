@@ -1,5 +1,5 @@
+import 'dart:async';
 import 'dart:io';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
@@ -28,7 +28,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isProcessing = false;
   double _processingProgress = 0.0;
   String _processingStage = '';
-  int _processCount = 0;
   XFile? _lastPickedImage; // 재시도를 위해 마지막 선택 이미지 저장
   File? _lastPickedFile; // 파일 탐색기에서 선택한 파일
 
@@ -38,29 +37,26 @@ class _HomeScreenState extends State<HomeScreen> {
     // 배너 광고 로드 및 상태 업데이트
     _loadAds();
   }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 적응형 배너 크기 업데이트
+    _adService.updateAdaptiveBannerSize(context);
+  }
 
   Future<void> _loadAds() async {
-    // 배너 광고가 준비되지 않았으면 로드
-    if (!_adService.isBannerAdReady) {
-      _adService.loadBannerAd();
-    }
-
-    // 전면 광고가 준비되지 않았으면 로드
-    if (!_adService.isInterstitialAdReady) {
-      _adService.loadInterstitialAd();
-    }
-
-    // 잠시 기다린 후 광고 로드 상태 확인
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (mounted) {
-      setState(() {});
-    }
-
-    // 광고 로드 상태를 주기적으로 확인 (더 긴 시간)
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {});
+    // 적응형 배너 크기 설정 후 광고 로드
+    await _adService.updateAdaptiveBannerSize(context);
+    
+    // 광고는 AdService에서 자동으로 미리 로드됨
+    // 주기적으로 상태 업데이트
+    Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
       }
+      setState(() {});
     });
   }
 
@@ -103,11 +99,9 @@ class _HomeScreenState extends State<HomeScreen> {
         );
 
         if (processedImage != null && mounted) {
-          // 전면 광고 표시 (3번에 1번)
-          _processCount++;
-          if (_processCount % 3 == 0) {
+          // 전면 광고 표시 시도
+          if (_adService.isInterstitialAdReady) {
             await _adService.showInterstitialAd();
-            await Future.delayed(const Duration(milliseconds: 500));
           }
 
           // 결과 화면으로 이동
@@ -304,11 +298,9 @@ class _HomeScreenState extends State<HomeScreen> {
         });
 
         if (mounted && processedImage != null) {
-          // 전면 광고 표시 (3번에 1번)
-          _processCount++;
-          if (_processCount % 3 == 0) {
+          // 전면 광고 표시 시도
+          if (_adService.isInterstitialAdReady) {
             await _adService.showInterstitialAd();
-            await Future.delayed(const Duration(milliseconds: 500));
           }
 
           if (mounted) {
@@ -617,31 +609,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              // 배너 광고 영역
-              Container(
-                height: 60,
-                width: MediaQuery.of(context).size.width,
-                color: _adService.isBannerAdReady
-                    ? Colors.white
-                    : Colors.grey[200],
-                child: _adService.isBannerAdReady
-                    ? (_adService.getBannerAdWidget() ??
-                          const Center(
-                            child: Text(
-                              '광고 로딩 중...',
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ))
-                    : const Center(
-                        child: Text(
-                          '광고 로딩 중...',
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
-                        ),
-                      ),
-              ),
+              // 배너 광고 영역 - 광고가 준비되면만 표시
+              if (_adService.isHomeBannerAdReady)
+                Container(
+                  height: 60,
+                  width: MediaQuery.of(context).size.width,
+                  color: Colors.white,
+                  child: _adService.getHomeBannerAdWidget() ?? const SizedBox.shrink(),
+                ),
             ],
           ),
         ),
