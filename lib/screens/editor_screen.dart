@@ -160,18 +160,12 @@ class _EditorScreenState extends State<EditorScreen> {
   Future<void> _saveImage() async {
     setState(() => _isSaving = true);
     
-    // 전면 광고 표시 시도
-    if (_adService.isInterstitialAdReady) {
-      await _adService.showInterstitialAd();
-      // 광고가 닫힐 때까지 잠시 대기
-      await Future.delayed(const Duration(milliseconds: 500));
-    }
+    bool result = false;
+    String message = '';
 
     try {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'cleancut_$timestamp.png';
-      bool result = false;
-      String message = '';
 
       // 플랫폼별 처리
       if (Platform.isAndroid || Platform.isIOS) {
@@ -234,28 +228,67 @@ class _EditorScreenState extends State<EditorScreen> {
         }
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(
-                  result ? Icons.check_circle : Icons.error,
-                  color: Colors.white,
+      // 저장 결과를 임시 저장
+      final savedResult = result;
+      final savedMessage = message;
+      
+      // 전면 광고 표시 시도 (광고가 닫힌 후 토스트 표시)
+      if (_adService.isInterstitialAdReady) {
+        await _adService.showInterstitialAd(
+          onAdDismissed: () {
+            // 광고가 닫힌 후 토스트 메시지 표시
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      Icon(
+                        savedResult ? Icons.check_circle : Icons.error,
+                        color: Colors.white,
+                      ),
+                      SizedBox(width: 12),
+                      Text(savedMessage),
+                    ],
+                  ),
+                  backgroundColor: savedResult
+                      ? AppTheme.successColor
+                      : AppTheme.errorColor,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  duration: const Duration(seconds: 3),
                 ),
-                SizedBox(width: 12),
-                Text(message),
-              ],
-            ),
-            backgroundColor: result
-                ? AppTheme.successColor
-                : AppTheme.errorColor,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
+              );
+            }
+          },
         );
+      } else {
+        // 광고가 없으면 바로 토스트 표시
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(
+                    savedResult ? Icons.check_circle : Icons.error,
+                    color: Colors.white,
+                  ),
+                  SizedBox(width: 12),
+                  Text(savedMessage),
+                ],
+              ),
+              backgroundColor: savedResult
+                  ? AppTheme.successColor
+                  : AppTheme.errorColor,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -267,6 +300,7 @@ class _EditorScreenState extends State<EditorScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
+            duration: const Duration(seconds: 3),
           ),
         );
       }

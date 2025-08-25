@@ -405,7 +405,7 @@ class AdService {
   }
 
   // 전면 광고 표시 (개선된 버전)
-  Future<bool> showInterstitialAd() async {
+  Future<bool> showInterstitialAd({Function()? onAdDismissed}) async {
     print('\n===== [INTERSTITIAL] 광고 표시 시도 =====');
     print('[메인 광고] 준비: $_isInterstitialAdReady');
     print('[미리 로드] 준비: $_isPreloadedInterstitialReady');
@@ -416,6 +416,71 @@ class AdService {
     
     if (adToShow != null) {
       try {
+        // 광고가 닫힐 때 실행할 콜백 저장
+        if (onAdDismissed != null) {
+          // 기존 콜백 저장
+          final originalCallback = adToShow.fullScreenContentCallback;
+          
+          // 새로운 콜백 생성 (기존 로직 + 추가 콜백)
+          adToShow.fullScreenContentCallback = FullScreenContentCallback(
+            onAdShowedFullScreenContent: originalCallback?.onAdShowedFullScreenContent,
+            onAdDismissedFullScreenContent: (InterstitialAd ad) {
+              // 기존 콜백 실행
+              originalCallback?.onAdDismissedFullScreenContent?.call(ad);
+              
+              // 메인 광고인 경우 처리
+              if (ad == _interstitialAd) {
+                ad.dispose();
+                _isInterstitialAdReady = false;
+                _interstitialAd = null;
+                
+                // 미리 로드한 광고를 메인으로 이동
+                if (_isPreloadedInterstitialReady && _preloadedInterstitialAd != null) {
+                  _interstitialAd = _preloadedInterstitialAd;
+                  _isInterstitialAdReady = true;
+                  _preloadedInterstitialAd = null;
+                  _isPreloadedInterstitialReady = false;
+                  
+                  // 새로운 광고 미리 로드
+                  _preloadNextInterstitialAd();
+                } else {
+                  // 다음 광고 로드
+                  Future.delayed(const Duration(seconds: 1), () {
+                    loadInterstitialAd();
+                  });
+                }
+              } else if (ad == _preloadedInterstitialAd) {
+                // 미리 로드한 광고인 경우
+                ad.dispose();
+                _isPreloadedInterstitialReady = false;
+                _preloadedInterstitialAd = null;
+              }
+              
+              // 추가 콜백 실행
+              onAdDismissed();
+            },
+            onAdFailedToShowFullScreenContent: (InterstitialAd ad, AdError error) {
+              originalCallback?.onAdFailedToShowFullScreenContent?.call(ad, error);
+              ad.dispose();
+              
+              if (ad == _interstitialAd) {
+                _isInterstitialAdReady = false;
+                _interstitialAd = null;
+              } else if (ad == _preloadedInterstitialAd) {
+                _isPreloadedInterstitialReady = false;
+                _preloadedInterstitialAd = null;
+              }
+              
+              Future.delayed(const Duration(seconds: 1), () {
+                loadInterstitialAd();
+              });
+              
+              // 광고 표시 실패 시에도 콜백 실행
+              onAdDismissed();
+            },
+          );
+        }
+        
         print('[INTERSTITIAL] 광고 show() 호출');
         await adToShow.show();
         
@@ -431,6 +496,10 @@ class AdService {
         print('[INTERSTITIAL] ✅ 광고 표시 성공!');
         return true;
       } catch (e) {
+        // show() 실패 시 콜백 실행
+        if (onAdDismissed != null) {
+          onAdDismissed();
+        }
         return false;
       }
     } else {
@@ -443,6 +512,12 @@ class AdService {
         loadInterstitialAd();
         _preloadNextInterstitialAd();
       }
+      
+      // 광고가 없을 때도 콜백 실행 (즉시)
+      if (onAdDismissed != null) {
+        onAdDismissed();
+      }
+      
       return false;
     }
   }
