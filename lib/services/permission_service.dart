@@ -10,12 +10,7 @@ class PermissionService {
 
   static Future<bool> requestStoragePermission() async {
     if (Platform.isAndroid) {
-      final androidInfo = await Permission.storage.status;
-      
-      if (androidInfo != PermissionStatus.granted) {
-        final result = await Permission.storage.request();
-        return result == PermissionStatus.granted;
-      }
+      // Android: 포토 피커/SAF 사용으로 저장소 권한 불필요
       return true;
     } else if (Platform.isIOS) {
       final status = await Permission.photos.request();
@@ -26,13 +21,8 @@ class PermissionService {
 
   static Future<bool> requestPhotoLibraryPermission() async {
     if (Platform.isAndroid) {
-      final sdkInt = await _getAndroidSdkInt();
-      if (sdkInt >= 33) {
-        final status = await Permission.photos.request();
-        return status == PermissionStatus.granted;
-      } else {
-        return await requestStoragePermission();
-      }
+      // Android: 시스템 포토 피커/SAF로 권한 불필요
+      return true;
     } else if (Platform.isIOS) {
       final status = await Permission.photos.request();
       return status == PermissionStatus.granted;
@@ -45,13 +35,13 @@ class PermissionService {
     required List<Permission> permissions,
   }) async {
     Map<Permission, PermissionStatus> statuses = {};
-    
+
     for (var permission in permissions) {
       statuses[permission] = await permission.status;
     }
 
     List<Permission> deniedPermissions = [];
-    
+
     for (var entry in statuses.entries) {
       if (entry.value != PermissionStatus.granted) {
         deniedPermissions.add(entry.key);
@@ -62,8 +52,8 @@ class PermissionService {
       return true;
     }
 
-    Map<Permission, PermissionStatus> results = 
-        await deniedPermissions.request();
+    Map<Permission, PermissionStatus> results = await deniedPermissions
+        .request();
 
     bool allGranted = true;
     for (var status in results.values) {
@@ -108,29 +98,10 @@ class PermissionService {
     );
   }
 
-  static Future<int> _getAndroidSdkInt() async {
-    if (Platform.isAndroid) {
-      try {
-        final ProcessResult result = await Process.run('getprop', ['ro.build.version.sdk']);
-        return int.tryParse(result.stdout.toString().trim()) ?? 0;
-      } catch (e) {
-        debugPrint('Error getting Android SDK version: $e');
-        return 0;
-      }
-    }
-    return 0;
-  }
-
   static Future<bool> hasStoragePermission() async {
     if (Platform.isAndroid) {
-      final sdkInt = await _getAndroidSdkInt();
-      if (sdkInt >= 33) {
-        final status = await Permission.photos.status;
-        return status == PermissionStatus.granted;
-      } else {
-        final status = await Permission.storage.status;
-        return status == PermissionStatus.granted;
-      }
+      // Android: 포토 피커/SAF 사용으로 권한 체크 불필요
+      return true;
     } else if (Platform.isIOS) {
       final status = await Permission.photos.status;
       return status == PermissionStatus.granted;

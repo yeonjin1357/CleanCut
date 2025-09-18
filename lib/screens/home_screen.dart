@@ -37,7 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // 배너 광고 로드 및 상태 업데이트
     _loadAds();
   }
-  
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -48,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadAds() async {
     // 적응형 배너 크기 설정 후 광고 로드
     await _adService.updateAdaptiveBannerSize(context);
-    
+
     // 광고는 AdService에서 자동으로 미리 로드됨
     // 주기적으로 상태 업데이트
     Timer.periodic(const Duration(seconds: 3), (timer) {
@@ -152,20 +152,9 @@ class _HomeScreenState extends State<HomeScreen> {
           permissions: [Permission.camera],
         );
       } else {
-        // 갤러리 권한 체크
+        // 갤러리: Android는 포토 피커/SAF로 권한 불필요, iOS만 요청
         if (Platform.isAndroid) {
-          final sdkInt = await _getAndroidSdkInt();
-          if (sdkInt >= 33) {
-            hasPermission = await PermissionService.checkAndRequestPermissions(
-              context: context,
-              permissions: [Permission.photos],
-            );
-          } else {
-            hasPermission = await PermissionService.checkAndRequestPermissions(
-              context: context,
-              permissions: [Permission.storage],
-            );
-          }
+          hasPermission = true;
         } else {
           hasPermission = await PermissionService.checkAndRequestPermissions(
             context: context,
@@ -371,19 +360,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<int> _getAndroidSdkInt() async {
-    if (Platform.isAndroid) {
-      try {
-        final ProcessResult result = await Process.run('getprop', [
-          'ro.build.version.sdk',
-        ]);
-        return int.tryParse(result.stdout.toString().trim()) ?? 0;
-      } catch (e) {
-        return 0;
-      }
-    }
-    return 0;
-  }
+  // Android 포토 피커 사용 전환으로 SDK 조회 메서드가 더 이상 필요하지 않습니다.
 
   @override
   Widget build(BuildContext context) {
@@ -615,7 +592,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   height: 60,
                   width: MediaQuery.of(context).size.width,
                   color: Colors.white,
-                  child: _adService.getHomeBannerAdWidget() ?? const SizedBox.shrink(),
+                  child:
+                      _adService.getHomeBannerAdWidget() ??
+                      const SizedBox.shrink(),
                 ),
             ],
           ),
